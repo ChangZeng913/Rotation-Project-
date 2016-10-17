@@ -1,0 +1,74 @@
+
+
+setwd("/home/czf9697/Harvard/Harvard-Jia") 
+load("final_merged_data.RData")
+# View(d)
+source("https://bioconductor.org/biocLite.R")
+install.packages("psych")
+install.packages("lme4")
+library("psych")
+library("lme4")
+
+
+data_merge<- get(load("final_merged_data.RData"))
+
+
+## repliace EXPL=EXP1, EXPZ=EXP2, EXPB=EXP3
+data_merge$EXP<- replace(data_merge$EXP,data_merge$EXP=="EXPL","EXP1")
+data_merge$EXP<- replace(data_merge$EXP,data_merge$EXP=="EXPZ","EXP2")
+data_merge$EXP<- replace(data_merge$EXP,data_merge$EXP=="EXPB","EXP3")
+
+# Check it has been replaced 
+# unique(data_merge$EXP)
+# View(data_merge)
+
+# extract the first 5 time sequences from the data_merge 
+# get the Sample_ID that satisfied the following requirements from Toronto_450K_ABlab_complete CSV
+# "EXP=screen, exposure = 0, treatment =0" as first sequence 
+# "EXP=EXP1, exposure =0, treatment =0, note = pre" as second 
+#"EXP=EXP1, exposure=0,treatment =0, note ="post" as third 
+# "EXP=EXP1, exposure =0, treatment = 0, note = 24 H" as fourth 
+# "EXP=EXP2, exposure = 1,treatment=0, note =pre" as fifth 
+
+wb<- read.csv("Toronto_450K_ABlab_071614_p1and2-complete.csv")
+
+# wb$DesignNO
+ind<- wb[wb$DesignNO%in% c(1,2,3,4,5),]
+ind_id<- ind$Sample_ID
+
+# subset these sequences from data_merge 
+data_merge_firstfive<- data_merge[na.omit(match(ind_id,data_merge$Sample.ID)),]
+
+# check substracted ID data_merge_firstfive$Sample.ID 
+
+# ICC calculation 
+ICC<- rep(NA,ncol(data_merge_firstfive)) # methylation values starts from column 37, initiate a space to hold the values 
+
+# lmer fit linear mixed-effects models to calculate ICC 
+# check data_merge_firstfive[1:10,1:10]
+
+# test 
+#sub<- data.frame(methy<- data_merge_firstfive[,37],id <- data_merge_firstfive$Subject.ID,na.omit = TRUE)
+#sub
+#res<- lmer(methy ~ (1|id),data<- sub)
+#res
+#randomVar<- data.frame(VarCorr(res))
+#icc<-randomVar$vcov[1]/(randomVar$vcov[1]+randomVar$vcov[2])
+#icc
+#ncol(data_merge_firstfive)
+
+for (i in 37: ncol(data_merge_firstfive)){
+  sub<- data.frame(methy<- data_merge_firstfive[,i],id <- data_merge_firstfive$Subject.ID)
+  res<- lmer(methy ~ (1|id),data<- sub)
+  randomVar<- data.frame(VarCorr(res)) # Varcorr function calculates the estimated variances, standard deviation and correlation between the random-effects terms in mixed effects model 
+  ICC[i]<- randomVar$vcov[1]/(randomVar$vcov[1]+randomVar$vcov[2])
+  writeLines(paste0("calculating",i,"CpG Done"))
+}
+
+# tryCatch 
+ICC<-na.omit(ICC)
+ICC
+# save the files 
+saveRDS(ICC,"icc1_5.rds")
+
+
